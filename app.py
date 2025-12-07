@@ -148,7 +148,7 @@ def load_data():
 
 # --- Autosave/State Management ---
 if "recommendations" not in st.session_state:
-    st.session_state.recommendations = {"Bertin": None, "Michelle": None}
+    st.session_state.recommendations = {"Bertin": None, "Michelle": None, "Tiffany": None}
 if "last_songs" not in st.session_state:
     st.session_state.last_songs = []
 
@@ -160,7 +160,7 @@ with st.sidebar:
     
     model_choice = st.radio(
         "Select Persona:",
-        ("Bertin", "Michelle"),
+        ("Bertin", "Michelle", "Tiffany"),
         index=0
     )
     
@@ -170,10 +170,14 @@ with st.sidebar:
         st.image("https://api.dicebear.com/9.x/avataaars/svg?seed=Bertin&backgroundColor=b6e3f4", width=120)
         st.markdown("### Bertin 🤖")
         st.info("I analyze the **context and meaning** of your songs using BERT embeddings to find books with a matching vibe.")
-    else:
+    elif model_choice == "Michelle":
         st.image("https://api.dicebear.com/9.x/avataaars/svg?seed=Michelle&backgroundColor=ffdfbf", width=120)
         st.markdown("### Michelle 📊")
         st.info("I look at the **numbers**—tempo, energy, valence. I'll find books that match the emotional curve of your playlist.")
+    else: # Tiffany
+        st.image("https://api.dicebear.com/9.x/avataaars/svg?seed=Tiffany&backgroundColor=c0eb75", width=120)
+        st.markdown("### Tiffany 📝")
+        st.info("I find books by matching **keywords and lyrics** from your songs. I'm great at finding thematic connections!")
 
 # Main Content
 st.title("🎵 Song to Book Recommender 📚")
@@ -209,8 +213,11 @@ if not df_songs.empty:
                     if model_choice == "Bertin":
                         endpoint = f"{API_URL}/recommend/bert"
                         payload = {"playlist_ids": input_ids, "top_k": 6} # Get a few more for grid
-                    else: # Michelle
+                    elif model_choice == "Michelle": # Michelle
                         endpoint = f"{API_URL}/recommend/numerical"
+                        payload = {"song_ids": input_ids, "n_recommendations": 6}
+                    else: # Tiffany
+                        endpoint = f"{API_URL}/recommend/tfidf"
                         payload = {"song_ids": input_ids, "n_recommendations": 6}
                     
                     response = requests.post(endpoint, json=payload)

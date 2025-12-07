@@ -1,0 +1,6 @@
+recos-from-playlist.code-workspace
+.python-version
+.env
+__pycache__/app.cpython-312.pyc
+secrets.toml
+.streamlit
