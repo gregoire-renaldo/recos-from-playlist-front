@@ -119,8 +119,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Constants ---
-API_URL = os.getenv("API_URL")
-DATA_PATH = os.getenv("DATA_PATH", "songs_light.parquet")
+API_URL = st.secrets["API_URL"]
+DATA_PATH = st.secrets["DATA_PATH"]
 
 # --- Helper Functions ---
 @st.cache_data
