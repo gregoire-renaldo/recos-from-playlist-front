@@ -119,7 +119,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Constants ---
-API_URL = os.getenv("API_URL", "https://playlist-recommender-812256971571.europe-west1.run.app")
+API_URL = os.getenv("API_URL")
 DATA_PATH = os.getenv("DATA_PATH", "songs_light.parquet")
 
 # --- Helper Functions ---
