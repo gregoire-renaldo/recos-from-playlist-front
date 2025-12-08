@@ -120,7 +120,8 @@ st.markdown("""
 
 # --- Constants ---
 API_URL = st.secrets.get("API_URL", "")
-DATA_PATH = st.secrets.get("DATA_PATH", "songs_light.parquet")
+# API_URL = "http://0.0.0.0:8000"
+DATA_PATH = st.secrets.get("DATA_PATH", "song_corpus_sorted_light.parquet")
 
 # --- Helper Functions ---
 @st.cache_data
@@ -203,7 +204,7 @@ if not df_songs.empty:
     # Get IDs of selected songs
     if selected_display_names:
         selected_songs = df_songs[df_songs["display_name"].isin(selected_display_names)]
-        input_ids = selected_songs.index.tolist()
+        input_ids = selected_songs['songs_id'].tolist()
         
         st.markdown("#### 2. Get Recommendations")
         
@@ -266,7 +267,7 @@ if not df_songs.empty:
                         # User asked: "5 lines visible, and a button read more"
                         
                         # 5 lines is roughly 300-400 chars depending on width.
-                        preview_length = 350
+                        preview_length = 450
                         if len(desc) > preview_length:
                             preview = desc[:preview_length].rsplit(' ', 1)[0] + "..."
                             st.markdown(f"<div class='desc-text'>{preview}</div>", unsafe_allow_html=True)
