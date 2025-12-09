@@ -4,11 +4,16 @@ import requests
 import os
 from dotenv import load_dotenv
 
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None
+
 
 # Load environment variables
 load_dotenv()
 
-# --- Configuration & Styling ---
+# --- Configuration & Styling - --
 st.set_page_config(
     page_title="Book Recommender",
     page_icon="📚",
@@ -33,8 +38,14 @@ API_URL = st.secrets.get("API_URL", "")
 # API_URL = "http://0.0.0.0:8000"
 DATA_PATH = st.secrets.get("DATA_PATH", "song_corpus_sorted_light.parquet")
 GOOGLE_BOOKS_API_KEY = st.secrets.get("GOOGLE_BOOKS_API_KEY")
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
 if not GOOGLE_BOOKS_API_KEY:
     st.warning("Google Books API key missing; covers and links may be limited.")
+if OpenAI is None:
+    st.info("Install the 'openai' package to enable the ChatGPT explanation feature.")
+elif not OPENAI_API_KEY:
+    st.info("Add OPENAI_API_KEY to .streamlit/secrets.toml to enable ChatGPT explanations.")
 
 
 # --- Helper Functions ---
@@ -121,11 +132,100 @@ def fetch_google_books_metadata(title: str, author: str = None) -> dict:
         # Keep UI clean if Google Books is unreachable; fall back to placeholders.
         return {}
 
+def _select_playlist_rows(songs_df: pd.DataFrame, playlist_ids: list[str]):
+    """Subset helper that tolerates missing columns."""
+    if songs_df is None or songs_df.empty or not playlist_ids:
+        return pd.DataFrame(columns=songs_df.columns if songs_df is not None else [])
+
+    if "songs_id" in songs_df.columns:
+        subset = songs_df[songs_df["songs_id"].isin(playlist_ids)]
+        if not subset.empty:
+            return subset
+
+    try:
+        return songs_df.loc[playlist_ids]
+    except Exception:
+        try:
+            return songs_df.iloc[playlist_ids]
+        except Exception:
+            return pd.DataFrame(columns=songs_df.columns)
+
+
+ROLE_STATEMENT = (
+    "Tu es un libraire/disquaire, qui doit expliquer le choix de nos recommendations "
+    ", il faut que tu t'exprimes dans des termes simples, mais efficaces."
+)
+
+INSTRUCTION_LINES = [
+    "Présente d'abord les chansons contenues dans la playlist, en donnant un très court descriptif de chaque chanson ou de la chanson, indique aussi le nombre de chansons dans la playlist.",
+    "Explique pour chaque livre pourquoi il correspond à la playlist, en reliant explicitement des éléments musicaux et littéraires. Fais court.",
+    "Présente ta réponse en français, un paragraphe (maximum une phrase) par livre classé par similarité décroissante.",
+    "Termine avec une conclusion globale de pourquoi ces recommandations sont un bon choix pour cette playlist. Keep it simple, on parle d'emotion, de feelings, de topics qui serait correlé entre le choix des chansons, et el recommendation de livre",
+]
+
+
+def build_chatgpt_prompt(
+    songs_df: pd.DataFrame, playlist_idx: list[str], recos: list[dict], model_label: str
+) -> str:
+    playlist_subset = _select_playlist_rows(songs_df, playlist_idx)
+    playlist_subset = playlist_subset.fillna("Inconnu")
+
+    song_lines = []
+    for _, row in playlist_subset.iterrows():
+        title = row.get("track_name") or row.get("title") or "Titre inconnu"
+        artist = row.get("track_artist") or row.get("artist") or "Artiste inconnu"
+        genre = row.get("genre")
+        suffix = f" ({genre})" if isinstance(genre, str) and genre else ""
+        song_lines.append(f"- {artist} – {title}{suffix}")
+
+    recos_df = pd.DataFrame(recos or [])
+    book_lines = []
+    for rank, row in recos_df.reset_index(drop=True).iterrows():
+        title = row.get("title") or row.get("book_title") or "Titre inconnu"
+        author = row.get("author") or row.get("authors") or "Auteur inconnu"
+        isbn = row.get("isbn") or row.get("ISBN")
+        similarity = row.get("similarity") or row.get("similarity_score")
+        desc = (row.get("description") or row.get("summary") or "").replace("\n", " ").strip()
+
+        fragments = [f"{title} - {author}"]
+        if isinstance(isbn, str) and isbn.strip():
+            fragments.append(f"ISBN : {isbn.strip()}")
+        if isinstance(similarity, (int, float)):
+            fragments.append(f"Similarité : {similarity:.3f}")
+        if desc:
+            fragments.append(f"Résumé : {desc}")
+
+        book_lines.append(f"{rank + 1}. " + " | ".join(fragments))
+
+    song_section = "\n".join(song_lines) if song_lines else "- Playlist vide ou introuvable."
+    book_section = "\n".join(book_lines) if book_lines else "- Aucune recommandation."
+    instructions_section = "\n".join(f"- {line}" for line in INSTRUCTION_LINES)
+
+    return (
+        f"{ROLE_STATEMENT}\n\n"
+        f"Playlist de départ ({len(playlist_subset)} chansons) :\n{song_section}\n\n"
+        f"Livres recommandés par {model_label} :\n{book_section}\n\n"
+        f"Consignes pour ChatGPT :\n{instructions_section}\n"
+    )
+
+
+def ask_chatgpt(prompt: str) -> str:
+    if OpenAI is None or not OPENAI_API_KEY:
+        return ""
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    resp = client.responses.create(
+        model=OPENAI_MODEL,
+        input=prompt,
+    )
+    return resp.output_text or ""
+
 # --- Autosave/State Management ---
 if "recommendations" not in st.session_state:
-    st.session_state.recommendations = {"Bertin": None, "Michelle": None, "Tiffany": None}
+    st.session_state.recommendations = {"Albert": None, "Michel": None, "Tiffany": None}
 if "last_songs" not in st.session_state:
     st.session_state.last_songs = []
+if "explanations" not in st.session_state:
+    st.session_state.explanations = {}
 
 # --- Main App ---
 
@@ -135,28 +235,28 @@ with st.sidebar:
 
     model_choice = st.radio(
         "Select Persona:",
-        ("Bertin", "Michelle", "Tiffany"),
+        ("Albert", "Michel", "Tiffany"),
         index=0
     )
 
     st.divider()
 
-    if model_choice == "Bertin":
+    if model_choice == "Albert":
         st.image(
             "Media/thispersondoesnotexist4.jpeg",
             width=120,
         )
-        st.markdown("### Bertin 🤖")
+        st.markdown("### Albert 🤖")
         st.info(
             "I analyze the **context and meaning** of your songs using BERT embeddings "
             "to find books with a matching vibe."
         )
-    elif model_choice == "Michelle":
+    elif model_choice == "Michel":
         st.image(
             "Media/thispersondoesnotexist3.jpeg",
             width=120,
         )
-        st.markdown("### Michelle 📊")
+        st.markdown("### Michel 📊")
         st.info(
             "I look at the **numbers**—tempo, energy, valence. "
             "I'll find books that match the emotional curve of your playlist."
@@ -201,15 +301,15 @@ if not df_songs.empty:
         if st.button(f"Ask {model_choice} to Recommend 🚀", type="primary"):
             with st.spinner(f"{model_choice} is thinking..."):
                 try:
-                    if model_choice == "Bertin":
+                    if model_choice == "Albert":
                         endpoint = f"{API_URL}/recommend/bert-big"
-                        payload = {"playlist_ids": input_ids, "top_k": 6}  # Get a few more for grid
-                    elif model_choice == "Michelle":
+                        payload = {"playlist_ids": input_ids, "top_k": 3}  # Get a few more for grid
+                    elif model_choice == "Michel":
                         endpoint = f"{API_URL}/recommend/numerical"
-                        payload = {"song_ids": input_ids, "n_recommendations": 6}
+                        payload = {"song_ids": input_ids, "n_recommendations": 3}
                     else:  # Tiffany
                         endpoint = f"{API_URL}/recommend/tfidf"
-                        payload = {"song_ids": input_ids, "n_recommendations": 6}
+                        payload = {"song_ids": input_ids, "n_recommendations": 3}
 
                     response = requests.post(endpoint, json=payload)
 
@@ -298,6 +398,32 @@ if not df_songs.empty:
                         """,
                         unsafe_allow_html=True,
                     )
+
+        st.markdown("#### Explication par le libraire (ChatGPT)")
+        if OpenAI is None:
+            st.info("Installe la dépendance 'openai' pour activer l'explication automatique.")
+        elif not OPENAI_API_KEY:
+            st.info("Ajoute OPENAI_API_KEY dans les secrets pour demander une explication.")
+        else:
+            if st.button("Demander une explication sur ces recommandations", key=f"explain_{model_choice}"):
+                prompt = build_chatgpt_prompt(
+                    songs_df=df_songs,
+                    playlist_idx=input_ids,
+                    recos=current_results,
+                    model_label=model_choice,
+                )
+                with st.spinner("Le libraire rédige ton explication..."):
+                    try:
+                        explanation = ask_chatgpt(prompt)
+                        if explanation:
+                            st.session_state.explanations[model_choice] = explanation
+                        else:
+                            st.warning("Aucune réponse reçue de ChatGPT.")
+                    except Exception as e:
+                        st.error(f"Erreur lors de l'appel à ChatGPT : {e}")
+
+            if st.session_state.explanations.get(model_choice):
+                st.markdown(st.session_state.explanations[model_choice])
 
     elif selected_display_names and not current_results:
         st.info(f"Click the button above to get recommendations from {model_choice}!")
