@@ -4,6 +4,7 @@ import requests
 import os
 from dotenv import load_dotenv
 
+
 # Load environment variables
 load_dotenv()
 
@@ -15,113 +16,26 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for a beautiful, modern look
-st.markdown("""
-<style>
-    /* Global Background & Font */
-    .stApp {
-        background-color: #f8f9fa;
-        font-family: 'Inter', sans-serif;
-    }
-    
-    /* Headers */
-    h1, h2, h3 {
-        color: #1a1a2e;
-        font-weight: 700;
-    }
-    /* Fixed H1 Visibility and Gradient */
-    h1 {
-        background: -webkit-linear-gradient(45deg, #FF6B6B, #4ECDC4);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text; /* standard property */
-        padding-bottom: 20px;
-        line-height: 1.2; /* Ensure height for gradient */
-    }
+def load_css(file_name: str = "styles.css"):
+    """Inject custom CSS from a local file."""
+    if os.path.exists(file_name):
+        with open(file_name) as f:
+            css = f.read()
+        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+    else:
+        st.warning(f"CSS file '{file_name}' not found.")
 
-    /* Sidebar Styling */
-    section[data-testid="stSidebar"] {
-        background-color: #f0f2f6;
-        color: #333333;
-    }
-    section[data-testid="stSidebar"] h1, 
-    section[data-testid="stSidebar"] h2, 
-    section[data-testid="stSidebar"] h3, 
-    section[data-testid="stSidebar"] label, 
-    section[data-testid="stSidebar"] span {
-        color: #333333 !important;
-    }
-    
-    /* Card Styling */
-    div.book-card-container {
-        background-color: white;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        border: 1px solid #e0e0e0;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        transition: transform 0.2s;
-    }
-    div.book-card-container:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-    }
-    .book-title {
-        color: #2c3e50;
-        font-size: 1.15rem;
-        font-weight: 700;
-        margin-bottom: 5px;
-        height: 3.5rem; /* Fixed height for title alignment */
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-    .book-author {
-        color: #7f8c8d;
-        font-size: 0.9rem;
-        margin-bottom: 12px;
-        font-style: italic;
-    }
-    .similarity-badge {
-        display: inline-block;
-        background-color: #e8f5e9;
-        color: #2e7d32;
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        margin-bottom: 12px;
-    }
-    
-    /* Description text styling */
-    .desc-text {
-        color: #4a4a4a;
-        font-size: 0.9rem;
-        line-height: 1.5;
-        margin-bottom: 10px;
-    }
-
-    /* Input Fields */
-    .stMultiSelect, .stButton {
-        max-width: 800px;
-        margin: 0 auto;
-    }
-    
-    /* Expander customization */
-    .streamlit-expanderHeader {
-        font-size: 0.85rem;
-        color: #4ECDC4;
-    }
-</style>
-""", unsafe_allow_html=True)
+# Load external CSS
+load_css("styles.css")
 
 # --- Constants ---
 API_URL = st.secrets.get("API_URL", "")
 # API_URL = "http://0.0.0.0:8000"
 DATA_PATH = st.secrets.get("DATA_PATH", "song_corpus_sorted_light.parquet")
+GOOGLE_BOOKS_API_KEY = st.secrets.get("GOOGLE_BOOKS_API_KEY")
+if not GOOGLE_BOOKS_API_KEY:
+    st.warning("Google Books API key missing; covers and links may be limited.")
+
 
 # --- Helper Functions ---
 @st.cache_data
@@ -130,22 +44,82 @@ def load_data():
     if not os.path.exists(DATA_PATH):
         st.error(f"Data file not found at {DATA_PATH}. Please check the path.")
         return pd.DataFrame()
-    
+
     try:
         df = pd.read_parquet(DATA_PATH)
         # Heuristics based on inspection
-        title_col = 'track_name' if 'track_name' in df.columns else 'title_key' if 'title_key' in df.columns else df.columns[0]
-        artist_col = 'track_artist' if 'track_artist' in df.columns else 'artist_key' if 'artist_key' in df.columns else None
-        
+        title_col = (
+            "track_name"
+            if "track_name" in df.columns
+            else "title_key"
+            if "title_key" in df.columns
+            else df.columns[0]
+        )
+        artist_col = (
+            "track_artist"
+            if "track_artist" in df.columns
+            else "artist_key"
+            if "artist_key" in df.columns
+            else None
+        )
+
         if artist_col:
-             df["display_name"] = df[artist_col].astype(str) + " - " + df[title_col].astype(str)
+            df["display_name"] = df[artist_col].astype(str) + " - " + df[title_col].astype(str)
         else:
-             df["display_name"] = df[title_col].astype(str)
-             
+            df["display_name"] = df[title_col].astype(str)
+
         return df
     except Exception as e:
         st.error(f"Error loading data: {e}")
         return pd.DataFrame()
+
+
+@st.cache_data(show_spinner=False)
+def fetch_google_books_metadata(title: str, author: str = None) -> dict:
+    """Look up a book on Google Books to enrich cards with cover and links."""
+    if not title or not GOOGLE_BOOKS_API_KEY:
+        return {}
+
+    query = f"intitle:{title}"
+    if author:
+        query += f"+inauthor:{author}"
+
+    params = {
+        "q": query,
+        "maxResults": 1,
+        "printType": "books",
+        "projection": "lite",
+        "key": GOOGLE_BOOKS_API_KEY,
+    }
+
+    try:
+        resp = requests.get(
+            "https://www.googleapis.com/books/v1/volumes",
+            params=params,
+            timeout=8,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items") or []
+        if not items:
+            return {}
+
+        volume_info = items[0].get("volumeInfo", {})
+        sale_info = items[0].get("saleInfo", {})
+        images = volume_info.get("imageLinks") or {}
+
+        return {
+            "title": volume_info.get("title"),
+            "authors": volume_info.get("authors"),
+            "thumbnail": images.get("thumbnail") or images.get("smallThumbnail"),
+            "image": images.get("large") or images.get("medium") or images.get("small"),
+            "infoLink": volume_info.get("infoLink"),
+            "previewLink": volume_info.get("previewLink"),
+            "canonicalVolumeLink": volume_info.get("canonicalVolumeLink"),
+            "buy_link": sale_info.get("buyLink"),
+        }
+    except Exception:
+        # Keep UI clean if Google Books is unreachable; fall back to placeholders.
+        return {}
 
 # --- Autosave/State Management ---
 if "recommendations" not in st.session_state:
@@ -158,27 +132,45 @@ if "last_songs" not in st.session_state:
 # Sidebar
 with st.sidebar:
     st.title("Model Selection")
-    
+
     model_choice = st.radio(
         "Select Persona:",
         ("Bertin", "Michelle", "Tiffany"),
         index=0
     )
-    
+
     st.divider()
-    
+
     if model_choice == "Bertin":
-        st.image("https://api.dicebear.com/9.x/avataaars/svg?seed=Bertin&backgroundColor=b6e3f4", width=120)
+        st.image(
+            "Media/thispersondoesnotexist4.jpeg",
+            width=120,
+        )
         st.markdown("### Bertin 🤖")
-        st.info("I analyze the **context and meaning** of your songs using BERT embeddings to find books with a matching vibe.")
+        st.info(
+            "I analyze the **context and meaning** of your songs using BERT embeddings "
+            "to find books with a matching vibe."
+        )
     elif model_choice == "Michelle":
-        st.image("https://api.dicebear.com/9.x/avataaars/svg?seed=Michelle&backgroundColor=ffdfbf", width=120)
+        st.image(
+            "Media/thispersondoesnotexist3.jpeg",
+            width=120,
+        )
         st.markdown("### Michelle 📊")
-        st.info("I look at the **numbers**—tempo, energy, valence. I'll find books that match the emotional curve of your playlist.")
-    else: # Tiffany
-        st.image("https://api.dicebear.com/9.x/avataaars/svg?seed=Tiffany&backgroundColor=c0eb75", width=120)
+        st.info(
+            "I look at the **numbers**—tempo, energy, valence. "
+            "I'll find books that match the emotional curve of your playlist."
+        )
+    else:  # Tiffany
+        st.image(
+            "Media/thispersondoesnotexist2.jpeg",
+            width=120,
+        )
         st.markdown("### Tiffany 📝")
-        st.info("I find books by matching **keywords and lyrics** from your songs. I'm great at finding thematic connections!")
+        st.info(
+            "I find books by matching **keywords and lyrics** from your songs. "
+            "I'm great at finding thematic connections!"
+        )
 
 # Main Content
 st.title("🎵 Song to Book Recommender 📚")
@@ -194,91 +186,121 @@ if not df_songs.empty:
         "Search and add songs:",
         options=df_songs["display_name"].unique(),
         placeholder="Type to search (e.g. 'Bohemian Rhapsody')...",
-        default=st.session_state.last_songs # restore selection if possible, though multiselect state is auto-handled usually
+        default=st.session_state.last_songs,  # restore selection if possible
     )
-    
-    # Update last songs in state to track changes if needed, 
-    # but Streamlit's widget state usually suffices. 
-    # However, to know when to invalidate cache or warning users:
-    
-    # Get IDs of selected songs
+
     if selected_display_names:
+        # Optionnel : mémoriser les derniers morceaux choisis
+        st.session_state.last_songs = selected_display_names
+
         selected_songs = df_songs[df_songs["display_name"].isin(selected_display_names)]
-        input_ids = selected_songs['songs_id'].tolist()
-        
+        input_ids = selected_songs["songs_id"].tolist()
+
         st.markdown("#### 2. Get Recommendations")
-        
+
         if st.button(f"Ask {model_choice} to Recommend 🚀", type="primary"):
             with st.spinner(f"{model_choice} is thinking..."):
                 try:
                     if model_choice == "Bertin":
                         endpoint = f"{API_URL}/recommend/bert-big"
-                        payload = {"playlist_ids": input_ids, "top_k": 6} # Get a few more for grid
-                    elif model_choice == "Michelle": # Michelle
+                        payload = {"playlist_ids": input_ids, "top_k": 6}  # Get a few more for grid
+                    elif model_choice == "Michelle":
                         endpoint = f"{API_URL}/recommend/numerical"
                         payload = {"song_ids": input_ids, "n_recommendations": 6}
-                    else: # Tiffany
-                        # Tiffany now also uses text-based IDs songs_id
+                    else:  # Tiffany
                         endpoint = f"{API_URL}/recommend/tfidf"
                         payload = {"song_ids": input_ids, "n_recommendations": 6}
-                    
+
                     response = requests.post(endpoint, json=payload)
-                    
+
                     if response.status_code == 200:
                         data = response.json()
-                        # Save to session state
-                        st.session_state.recommendations[model_choice] = data.get("results", [])
+                        results = data.get("results", [])
+                        enriched_results = []
+                        for book in results:
+                            title = book.get("title") or book.get("book_title")
+                            author = book.get("author") or book.get("authors")
+                            google_data = fetch_google_books_metadata(title, author)
+                            if google_data:
+                                book = {**book, "google_books": google_data}
+                            enriched_results.append(book)
+                        st.session_state.recommendations[model_choice] = enriched_results
                     else:
                         st.error(f"API Error: {response.status_code} - {response.text}")
-                
+
                 except Exception as e:
                     st.error(f"Something went wrong: {e}")
 
-        # --- Display Results ---
-        # Always check if we have results for the CURRENT model in session state and display them
-        current_results = st.session_state.recommendations.get(model_choice)
-        
-        if current_results:
-            st.divider()
-            st.markdown(f"### {model_choice}'s Picks for You")
-            
-            # Grid Layout
-            cols = st.columns(3)
-            for idx, book in enumerate(current_results):
-                with cols[idx % 3]:
-                    title = book.get('title') or book.get('book_title')
-                    author = book.get('author')
-                    desc = book.get('description', 'No description available.')
-                    score = book.get('similarity', 0) or book.get('similarity_score', 0)
-                    score_pct = f"{score:.0%}" if score <= 1 else f"{score:.2f}"
-                    
-                    # Layout: Container -> Badge -> Title -> Author -> Desc -> Read More
-                    with st.container():
-                        st.markdown(f"""
-                        <div class="book-card-container">
-                            <div class="similarity-badge">{score_pct} Match</div>
-                            <div class="book-title" title="{title}">{title}</div>
-                            <div class="book-author">by {author}</div>
-                            <div style="flex-grow: 1;"></div> 
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Description logic using Expander for 'Read More'
-                        # We show a truncated version (approx 5 lines) or just the expander
-                        # User asked: "5 lines visible, and a button read more"
-                        
-                        # 5 lines is roughly 300-400 chars depending on width.
-                        preview_length = 450
-                        if len(desc) > preview_length:
-                            preview = desc[:preview_length].rsplit(' ', 1)[0] + "..."
-                            st.markdown(f"<div class='desc-text'>{preview}</div>", unsafe_allow_html=True)
-                            with st.expander("Read more"):
-                                st.markdown(desc)
-                        else:
-                             st.markdown(f"<div class='desc-text'>{desc}</div>", unsafe_allow_html=True)
+    # --- Display Results ---
+    current_results = st.session_state.recommendations.get(model_choice)
 
-        elif selected_display_names and not current_results:
-             st.info(f"Click the button above to get recommendations from {model_choice}!")
+    if current_results:
+        st.divider()
+        st.markdown(f"### {model_choice}'s Picks for You")
+
+        # Grid Layout
+        cols = st.columns(3)
+        for idx, book in enumerate(current_results):
+            with cols[idx % 3]:
+                title = book.get("title") or book.get("book_title")
+                author = book.get("author") or "Unknown author"
+                desc = book.get("description", "No description available.")
+                score = book.get("similarity", 0) or book.get("similarity_score", 0)
+                score_pct = f"{score:.0%}" if score <= 1 else f"{score:.2f}"
+                google_info = book.get("google_books") or {}
+                cover_url = (
+                    google_info.get("thumbnail")
+                    or google_info.get("image")
+                    or book.get("image")
+                    or "https://placehold.co/240x360?text=No+photo+on+google+books+api"
+                )
+                purchase_link = (
+                    google_info.get("buy_link")
+                    or google_info.get("infoLink")
+                    or book.get("buy_link")
+                )
+                preview_link = google_info.get("preview_link") or google_info.get("previewLink")
+                preview_length = 450
+                if len(desc) > preview_length:
+                    preview = desc[:preview_length].rsplit(" ", 1)[0] + "..."
+                    desc_html = f"""
+                        <div class='desc-text'>{preview}</div>
+                        <details class='desc-toggle'>
+                            <summary>Read more</summary>
+                            <div class='desc-text'>{desc}</div>
+                        </details>
+                    """
+                else:
+                    desc_html = f"<div class='desc-text'>{desc}</div>"
+
+                # Layout: Container -> Badge -> Title -> Author -> Spacer
+                with st.container():
+                    st.markdown(
+                        f"""
+                        <div class="book-card-container">
+                            <div class="book-card-header">
+                                <div class="cover-frame">
+                                    <img src="{cover_url}" alt="Book cover for {title}" loading="lazy" />
+                                </div>
+                                <div class="card-meta">
+                                    <div class="similarity-badge">{score_pct} Match</div>
+                                    <div class="book-title" title="{title}">{title}</div>
+                                    <div class="book-author">by {author}</div>
+                                    <div class="google-note">Google Books cover & links appear here when available.</div>
+                                    <div class="book-links">
+                                        <a class="link-pill {'disabled' if not purchase_link else ''}" href="{purchase_link or 'javascript:void(0);'}" target="_blank" rel="noopener">Buy on Google Books</a>
+                                        <a class="link-pill secondary {'disabled' if not preview_link else ''}" href="{preview_link or 'javascript:void(0);'}" target="_blank" rel="noopener">Read a sample</a>
+                                    </div>
+                                    {desc_html}
+                                </div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+    elif selected_display_names and not current_results:
+        st.info(f"Click the button above to get recommendations from {model_choice}!")
 
 else:
     st.info("Loading song database... if this takes too long, check the data path.")
