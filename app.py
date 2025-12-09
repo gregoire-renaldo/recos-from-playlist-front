@@ -212,7 +212,7 @@ if not df_songs.empty:
             with st.spinner(f"{model_choice} is thinking..."):
                 try:
                     if model_choice == "Bertin":
-                        endpoint = f"{API_URL}/recommend/bert"
+                        endpoint = f"{API_URL}/recommend/bert-big"
                         payload = {"playlist_ids": input_ids, "top_k": 6} # Get a few more for grid
                     elif model_choice == "Michelle": # Michelle
                         endpoint = f"{API_URL}/recommend/numerical"
