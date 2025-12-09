@@ -218,6 +218,7 @@ if not df_songs.empty:
                         endpoint = f"{API_URL}/recommend/numerical"
                         payload = {"song_ids": input_ids, "n_recommendations": 6}
                     else: # Tiffany
+                        # Tiffany now also uses text-based IDs songs_id
                         endpoint = f"{API_URL}/recommend/tfidf"
                         payload = {"song_ids": input_ids, "n_recommendations": 6}
                     
