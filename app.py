@@ -484,4 +484,3 @@ with st.sidebar:
                 import traceback
                 st.error(f"Exception during test: {e}")
                 st.code(traceback.format_exc())
-```
