@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 import os
+import html
 from dotenv import load_dotenv
 
 try:
@@ -223,7 +224,13 @@ def ask_chatgpt(prompt: str) -> str:
 
 # --- Autosave/State Management ---
 if "recommendations" not in st.session_state:
-    st.session_state.recommendations = {"Albert": None, "Michel": None, "Tiffany": None}
+    st.session_state.recommendations = {
+        "Albert": None, 
+        "Michel": None, 
+        "Tiffany": None,
+        "Bert-small-en": None,
+        "Bert-small-ml": None
+    }
 if "last_songs" not in st.session_state:
     st.session_state.last_songs = []
 if "explanations" not in st.session_state:
@@ -237,7 +244,7 @@ with st.sidebar:
 
     model_choice = st.radio(
         "Select Persona:",
-        ("Albert", "Michel", "Tiffany"),
+        ("Albert", "Michel", "Tiffany", "Bert-small-en", "Bert-small-ml"),
         index=0
     )
 
@@ -263,7 +270,7 @@ with st.sidebar:
             "I look at the **numbers**—tempo, energy, valence. "
             "I'll find books that match the emotional curve of your playlist."
         )
-    else:  # Tiffany
+    elif model_choice == "Tiffany":
         st.image(
             "Media/thispersondoesnotexist2.jpeg",
             width=120,
@@ -272,6 +279,18 @@ with st.sidebar:
         st.info(
             "I find books by matching **keywords and lyrics** from your songs. "
             "I'm great at finding thematic connections!"
+        )
+    elif model_choice == "Bert-small-en":
+        st.markdown("### Bert-small-en 🌐")
+        st.info(
+            "I use a compact English BERT model to analyze song context "
+            "and find matching books efficiently."
+        )
+    else:  # Bert-small-ml
+        st.markdown("### Bert-small-ml 🌍")
+        st.info(
+            "I use a multilingual BERT model to understand songs across languages "
+            "and recommend books with similar themes."
         )
 
 # Main Content
@@ -309,8 +328,14 @@ if not df_songs.empty:
                     elif model_choice == "Michel":
                         endpoint = f"{API_URL}/recommend/numerical"
                         payload = {"song_ids": input_ids, "n_recommendations": 3}
-                    else:  # Tiffany
+                    elif model_choice == "Tiffany":
                         endpoint = f"{API_URL}/recommend/tfidf"
+                        payload = {"song_ids": input_ids, "n_recommendations": 3}
+                    elif model_choice == "Bert-small-en":
+                        endpoint = f"{API_URL}/recommend/bert-small_en"
+                        payload = {"song_ids": input_ids, "n_recommendations": 3}
+                    else:  # Bert-small-ml
+                        endpoint = f"{API_URL}/recommend/bert-small_ml"
                         payload = {"song_ids": input_ids, "n_recommendations": 3}
 
                     response = requests.post(endpoint, json=payload)
@@ -362,18 +387,27 @@ if not df_songs.empty:
                     or book.get("buy_link")
                 )
                 preview_link = google_info.get("preview_link") or google_info.get("previewLink")
-                preview_length = 450
+                
+                # Escape HTML in description to prevent rendering issues
+                desc = html.escape(desc) if desc else "No description available."
+                
+                preview_length = 280  # Approx 4 lines at ~70 chars per line
                 if len(desc) > preview_length:
-                    preview = desc[:preview_length].rsplit(" ", 1)[0] + "..."
-                    desc_html = f"""
-                        <div class='desc-text'>{preview}</div>
-                        <details class='desc-toggle'>
-                            <summary>Read more</summary>
-                            <div class='desc-text'>{desc}</div>
-                        </details>
-                    """
+                    # Find a good break point (end of sentence or word)
+                    preview = desc[:preview_length]
+                    last_period = preview.rfind('. ')
+                    if last_period > preview_length * 0.6:  # If we find a period in the last 40%
+                        preview = desc[:last_period + 1]
+                    else:
+                        preview = desc[:preview_length].rsplit(' ', 1)[0] + "..."
+                    
+                    desc_html = f"""<div class='desc-text desc-preview'>{preview}</div>
+<details class='desc-toggle'>
+<summary>Read more</summary>
+<div class='desc-text desc-full'>{desc}</div>
+</details>"""
                 else:
-                    desc_html = f"<div class='desc-text'>{desc}</div>"
+                    desc_html = f"<div class='desc-text desc-fixed'>{desc}</div>"
 
                 # Layout: Container -> Badge -> Title -> Author -> Spacer
                 with st.container():

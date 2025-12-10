@@ -159,8 +159,25 @@ div.book-card-container:hover {
 .desc-text {
     color: #4a4a4a;
     font-size: 0.9rem;
-    line-height: 1.5;
+    line-height: 1.6;
     margin-bottom: 10px;
+}
+
+/* Fixed height for preview to ensure 4 lines */
+.desc-preview {
+    min-height: 5.76rem; /* 4 lines * 1.6 line-height * 0.9rem font-size = ~5.76rem */
+    max-height: 5.76rem;
+    overflow: hidden;
+}
+
+/* Ensure short descriptions also take up the same space */
+.desc-fixed {
+    min-height: 5.76rem;
+}
+
+/* Full description when expanded */
+.desc-full {
+    margin-top: 10px;
 }
 
 .desc-toggle {
@@ -173,6 +190,17 @@ div.book-card-container:hover {
     font-weight: 600;
     font-size: 0.85rem;
     list-style: none;
+    user-select: none;
+}
+
+.desc-toggle summary::before {
+    content: "▼ ";
+    display: inline-block;
+    transition: transform 0.2s;
+}
+
+.desc-toggle[open] summary::before {
+    transform: rotate(-180deg);
 }
 
 .desc-toggle summary::-webkit-details-marker {
@@ -181,6 +209,11 @@ div.book-card-container:hover {
 
 .desc-toggle[open] summary {
     color: #1b5e20;
+    margin-bottom: 8px;
+}
+
+.desc-toggle summary:hover {
+    text-decoration: underline;
 }
 
 /* Input Fields */
