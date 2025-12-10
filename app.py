@@ -303,7 +303,7 @@ if not df_songs.empty:
                 try:
                     if model_choice == "Albert":
                         endpoint = f"{API_URL}/recommend/bert-big"
-                        payload = {"playlist_ids": input_ids, "top_k": 3}  # Get a few more for grid
+                        payload = {"song_ids": input_ids, "top_k": 3}  # Get a few more for grid
                     elif model_choice == "Michel":
                         endpoint = f"{API_URL}/recommend/numerical"
                         payload = {"song_ids": input_ids, "n_recommendations": 3}
