@@ -34,6 +34,7 @@ def load_css(file_name: str = "styles.css"):
 load_css("styles.css")
 
 # --- Constants ---
+# don't forget to change it between dev and prod
 API_URL = st.secrets.get("API_URL", "")
 # API_URL = "http://0.0.0.0:8000"
 DATA_PATH = st.secrets.get("DATA_PATH", "song_corpus_sorted_light.parquet")
