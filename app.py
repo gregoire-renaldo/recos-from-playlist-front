@@ -101,6 +101,7 @@ def fetch_google_books_metadata(title: str, author: str = None) -> dict:
         "maxResults": 1,
         "printType": "books",
         "projection": "lite",
+        "country": "FR",
         "key": GOOGLE_BOOKS_API_KEY,
     }
 
@@ -458,6 +459,7 @@ with st.sidebar:
                     "maxResults": 1,
                     "printType": "books",
                     "projection": "lite",
+                    "country": "FR",
                     "key": GOOGLE_BOOKS_API_KEY,
                 }
                 resp = requests.get(
