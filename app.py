@@ -43,7 +43,7 @@ API_URL = st.secrets.get("API_URL", "")
 DATA_PATH = st.secrets.get("DATA_PATH", "song_corpus_sorted_light.parquet")
 GOOGLE_BOOKS_API_KEY = st.secrets.get("GOOGLE_BOOKS_API_KEY")
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4.1-mini-2025-04-14")
 if not GOOGLE_BOOKS_API_KEY:
     st.warning("Google Books API key missing; covers and links may be limited.")
 if OpenAI is None:
@@ -230,8 +230,8 @@ if "recommendations" not in st.session_state:
         "Albert": None,
         "Michel": None,
         "Tiffany": None,
-        "Bert-small-en": None,
-        "Bert-small-ml": None,
+        "Bertina": None,
+        "Roberto": None,
         "Ensemble": None
     }
 if "last_songs" not in st.session_state:
@@ -247,7 +247,7 @@ with st.sidebar:
 
     model_choice = st.radio(
         "Select Persona:",
-        ("Albert", "Michel", "Tiffany", "Bert-small-en", "Bert-small-ml", "Ensemble"),
+        ("Albert", "Michel", "Tiffany", "Bertina", "Roberto", "Ensemble"),
         index=0
     )
 
@@ -283,21 +283,29 @@ with st.sidebar:
             "I find books by matching **keywords and lyrics** from your songs. "
             "I'm great at finding thematic connections!"
         )
-    elif model_choice == "Bert-small-en":
-        st.markdown("### Bert-small-en 🌐")
+    elif model_choice == "Bertina":
+        st.image(
+            "Media/thispersondoesnotexist5.jpeg",
+            width=120,
+        )
+        st.markdown("### Bertina 🌐")
         st.info(
             "I use a compact English BERT model to analyze song context "
             "and find matching books efficiently."
         )
-    elif model_choice == "Bert-small-ml":
-        st.markdown("### Bert-small-ml 🌍")
+    elif model_choice == "Roberto":
+        st.image(
+            "Media/thispersondoesnotexist6.jpeg",
+            width=120,
+        )
+        st.markdown("### Roberto 🌍")
         st.info(
             "I use a multilingual BERT model to understand songs across languages "
             "and recommend books with similar themes."
         )
     else:  # Ensemble
         st.image(
-            "Media/thispersondoesnotexist4.jpeg",
+            "Media/cohorte.jpg",
             width=120,
         )
         st.markdown("### Ensemble 🎭")
@@ -310,32 +318,32 @@ with st.sidebar:
     if model_choice == "Ensemble":
         st.divider()
         st.markdown("### 🎭 Ensemble Configuration")
-        
+
         # Model Selection
         available_models = {
             "Albert (BERT-big)": "albert",
-            "Michel (Numerical)": "michel", 
+            "Michel (Numerical)": "michel",
             "Tiffany (TF-IDF)": "tiffany",
-            "Bert-small-en": "bert-small-en",
-            "Bert-small-ml": "bert-small-ml"
+            "Bertina ()": "Bertina",
+            "Roberto": "Roberto"
         }
-        
+
         selected_models = st.multiselect(
             "Select models to combine:",
             options=list(available_models.keys()),
             default=list(available_models.keys())[:3],  # Default to first 3
             help="Choose which personas to include in the ensemble"
         )
-        
+
         if not selected_models:
             st.warning("Please select at least one model for the ensemble.")
-        
+
         # Weight Configuration
         weights = {}
         if selected_models:
             st.markdown("#### Model Weights")
             st.caption("Adjust how much each model influences the final recommendations (must sum to 1.0)")
-            
+
             # Create sliders for weights
             remaining_weight = 1.0
             for i, model_display in enumerate(selected_models):
@@ -345,25 +353,25 @@ with st.sidebar:
                 else:
                     max_weight = min(1.0, remaining_weight)
                     weight = st.slider(
-                        f"{model_display}:", 
-                        min_value=0.0, 
-                        max_value=max_weight, 
+                        f"{model_display}:",
+                        min_value=0.0,
+                        max_value=max_weight,
                         value=min(0.33, max_weight),
                         step=0.05,
                         key=f"weight_{model_display}"
                     )
                     remaining_weight -= weight
-                
+
                 model_key = available_models[model_display]
                 weights[model_key] = weight
-            
+
             # Show total
             total_weight = sum(weights.values())
             if abs(total_weight - 1.0) > 0.01:
                 st.warning(f"Weights sum to {total_weight:.2f}, but should sum to 1.0")
             else:
                 st.success(f"✓ Weights sum to {total_weight:.2f}")
-        
+
         # Store in session state
         if "ensemble_config" not in st.session_state:
             st.session_state.ensemble_config = {}
@@ -410,10 +418,10 @@ if not df_songs.empty:
                     elif model_choice == "Tiffany":
                         endpoint = f"{API_URL}/recommend/tfidf"
                         payload = {"song_ids": input_ids, "n_recommendations": 3}
-                    elif model_choice == "Bert-small-en":
+                    elif model_choice == "Bertina":
                         endpoint = f"{API_URL}/recommend/bert-small_en"
                         payload = {"song_ids": input_ids, "n_recommendations": 3}
-                    elif model_choice == "Bert-small-ml":
+                    elif model_choice == "Roberto":
                         endpoint = f"{API_URL}/recommend/bert-small_ml"
                         payload = {"song_ids": input_ids, "n_recommendations": 3}
                     else:  # Ensemble
@@ -423,7 +431,7 @@ if not df_songs.empty:
                             st.error("Please configure the ensemble models first.")
                             st.stop()  # Stop execution if no models selected
                         payload = {
-                            "song_ids": input_ids, 
+                            "song_ids": input_ids,
                             "n_recommendations": 3,
                             "models": ensemble_config["models"],
                             "weights": ensemble_config["weights"] if ensemble_config["weights"] else None
