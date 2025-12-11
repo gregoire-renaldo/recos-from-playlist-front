@@ -32,7 +32,9 @@ def load_css(file_name: str = "styles.css"):
         st.warning(f"CSS file '{file_name}' not found.")
 
 # Load external CSS
-load_css("styles2.css")
+# load_css("styles.css")
+# load_css("styles2.css")
+load_css("styles3.css")
 
 # --- Constants ---
 # don't forget to change it between dev and prod
@@ -229,7 +231,8 @@ if "recommendations" not in st.session_state:
         "Michel": None,
         "Tiffany": None,
         "Bert-small-en": None,
-        "Bert-small-ml": None
+        "Bert-small-ml": None,
+        "Ensemble": None
     }
 if "last_songs" not in st.session_state:
     st.session_state.last_songs = []
@@ -244,7 +247,7 @@ with st.sidebar:
 
     model_choice = st.radio(
         "Select Persona:",
-        ("Albert", "Michel", "Tiffany", "Bert-small-en", "Bert-small-ml"),
+        ("Albert", "Michel", "Tiffany", "Bert-small-en", "Bert-small-ml", "Ensemble"),
         index=0
     )
 
@@ -286,12 +289,88 @@ with st.sidebar:
             "I use a compact English BERT model to analyze song context "
             "and find matching books efficiently."
         )
-    else:  # Bert-small-ml
+    elif model_choice == "Bert-small-ml":
         st.markdown("### Bert-small-ml 🌍")
         st.info(
             "I use a multilingual BERT model to understand songs across languages "
             "and recommend books with similar themes."
         )
+    else:  # Ensemble
+        st.image(
+            "Media/thispersondoesnotexist4.jpeg",
+            width=120,
+        )
+        st.markdown("### Ensemble 🎭")
+        st.info(
+            "I combine the wisdom of multiple AI personas, weighing their recommendations "
+            "to give you the best mix of insights. Customize which models to use and how much to trust each!"
+        )
+
+    # Ensemble Configuration
+    if model_choice == "Ensemble":
+        st.divider()
+        st.markdown("### 🎭 Ensemble Configuration")
+        
+        # Model Selection
+        available_models = {
+            "Albert (BERT-big)": "albert",
+            "Michel (Numerical)": "michel", 
+            "Tiffany (TF-IDF)": "tiffany",
+            "Bert-small-en": "bert-small-en",
+            "Bert-small-ml": "bert-small-ml"
+        }
+        
+        selected_models = st.multiselect(
+            "Select models to combine:",
+            options=list(available_models.keys()),
+            default=list(available_models.keys())[:3],  # Default to first 3
+            help="Choose which personas to include in the ensemble"
+        )
+        
+        if not selected_models:
+            st.warning("Please select at least one model for the ensemble.")
+        
+        # Weight Configuration
+        weights = {}
+        if selected_models:
+            st.markdown("#### Model Weights")
+            st.caption("Adjust how much each model influences the final recommendations (must sum to 1.0)")
+            
+            # Create sliders for weights
+            remaining_weight = 1.0
+            for i, model_display in enumerate(selected_models):
+                if i == len(selected_models) - 1:  # Last model gets remaining weight
+                    weight = remaining_weight
+                    st.text(f"{model_display}: {weight:.2f} (auto-calculated)")
+                else:
+                    max_weight = min(1.0, remaining_weight)
+                    weight = st.slider(
+                        f"{model_display}:", 
+                        min_value=0.0, 
+                        max_value=max_weight, 
+                        value=min(0.33, max_weight),
+                        step=0.05,
+                        key=f"weight_{model_display}"
+                    )
+                    remaining_weight -= weight
+                
+                model_key = available_models[model_display]
+                weights[model_key] = weight
+            
+            # Show total
+            total_weight = sum(weights.values())
+            if abs(total_weight - 1.0) > 0.01:
+                st.warning(f"Weights sum to {total_weight:.2f}, but should sum to 1.0")
+            else:
+                st.success(f"✓ Weights sum to {total_weight:.2f}")
+        
+        # Store in session state
+        if "ensemble_config" not in st.session_state:
+            st.session_state.ensemble_config = {}
+        st.session_state.ensemble_config = {
+            "models": [available_models[model] for model in selected_models],
+            "weights": weights if selected_models else {}
+        }
 
 # Main Content
 st.title("🎵 Song to Book Recommender 📚")
@@ -334,9 +413,21 @@ if not df_songs.empty:
                     elif model_choice == "Bert-small-en":
                         endpoint = f"{API_URL}/recommend/bert-small_en"
                         payload = {"song_ids": input_ids, "n_recommendations": 3}
-                    else:  # Bert-small-ml
+                    elif model_choice == "Bert-small-ml":
                         endpoint = f"{API_URL}/recommend/bert-small_ml"
                         payload = {"song_ids": input_ids, "n_recommendations": 3}
+                    else:  # Ensemble
+                        endpoint = f"{API_URL}/recommend/ensemble"
+                        ensemble_config = st.session_state.get("ensemble_config", {})
+                        if not ensemble_config.get("models"):
+                            st.error("Please configure the ensemble models first.")
+                            st.stop()  # Stop execution if no models selected
+                        payload = {
+                            "song_ids": input_ids, 
+                            "n_recommendations": 3,
+                            "models": ensemble_config["models"],
+                            "weights": ensemble_config["weights"] if ensemble_config["weights"] else None
+                        }
 
                     response = requests.post(endpoint, json=payload)
 
