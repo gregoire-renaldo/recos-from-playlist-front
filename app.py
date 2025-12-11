@@ -406,7 +406,7 @@ if not df_songs.empty:
 
         st.markdown("#### 2. Get Recommendations")
 
-        if st.button(f"Ask {model_choice} to Recommend 🚀", type="primary"):
+        if st.button(f"Ask {model_choice} to Recommend", type="primary"):
             with st.spinner(f"{model_choice} is thinking..."):
                 try:
                     if model_choice == "Albert":
@@ -558,7 +558,17 @@ if not df_songs.empty:
                         st.error(f"Erreur lors de l'appel à ChatGPT : {e}")
 
             if st.session_state.explanations.get(model_choice):
-                st.markdown(st.session_state.explanations[model_choice])
+                explanation = st.session_state.explanations[model_choice]
+                safe_explanation = html.escape(explanation).replace("\n", "<br>")
+                st.markdown(
+                    f"""
+                    <div class="explanation-card">
+                        <div class="explanation-title">Explication par {model_choice}</div>
+                        <div class="explanation-body">{safe_explanation}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
     elif selected_display_names and not current_results:
         st.info(f"Click the button above to get recommendations from {model_choice}!")
