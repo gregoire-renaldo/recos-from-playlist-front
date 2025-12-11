@@ -102,6 +102,17 @@ section[data-testid="stSidebar"] span {
     color: var(--text-strong);
 }
 
+/* Selected tags inside the multiselect input */
+.stMultiSelect [data-baseweb="tag"] {
+    background: var(--accent);
+    color: #fff;
+    border-color: transparent;
+}
+
+.stMultiSelect [data-baseweb="tag"] span {
+    color: #fff;
+}
+
 .stMultiSelect:focus-within,
 .stTextInput:focus-within,
 .stSelectbox:focus-within,
@@ -122,10 +133,15 @@ section[data-testid="stSidebar"] span {
     font-weight: 600;
     font-size: 0.95rem;
     letter-spacing: 0.02em;
-    color: white;
+    color: #fff !important;
     background: linear-gradient(120deg, #2563eb, #3b82f6 60%);
     box-shadow: 0 10px 20px rgba(37, 99, 235, 0.25);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Force inner text of the buttons (and any spans) to stay white */
+.stButton > button * {
+    color: #fff !important;
 }
 
 .stButton > button:hover {
@@ -310,6 +326,36 @@ div.book-card-container {
     color: #fff;
     background: var(--accent);
     border-radius: 999px;
+}
+
+.explanation-card {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 1.25rem 1.4rem;
+    margin-top: 0.5rem;
+}
+
+.explanation-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 700;
+    color: var(--text-strong);
+    margin-bottom: 0.35rem;
+    letter-spacing: -0.01em;
+}
+
+.explanation-title::before {
+    content: "💬";
+    font-size: 1.05rem;
+}
+
+.explanation-body {
+    color: var(--text-strong);
+    line-height: 1.6;
+    font-size: 0.98rem;
 }
 
 @media (max-width: 1024px) {
