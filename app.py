@@ -381,7 +381,7 @@ with st.sidebar:
         }
 
 # Main Content
-st.title("🎵 Song to Book Recommender 📚")
+st.title("🎵 StoryTunes 📚")
 st.markdown("### create your reading list from your playlist")
 
 # Load Data
@@ -575,3 +575,29 @@ if not df_songs.empty:
 
 else:
     st.info("Loading song database... if this takes too long, check the data path.")
+ 
+#  Footer: fixed to bottom with light styling so it doesn't blend in
+st.markdown(
+    """
+    <style>
+    .app-footer {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background: rgba(255,255,255,0.0);
+        color: #6c757d;
+        text-align: center;
+        padding: 10px 0;
+        font-size: 14px;
+        z-index: 9999;
+    }
+    /* give main content some bottom padding so the footer doesn't overlap it */
+    .stApp > main {
+        padding-bottom: 60px;
+    }
+    </style>
+    <div class="app-footer">Developed by Nico, Pierre, Christ, and Greg</div>
+    """,
+    unsafe_allow_html=True,
+)
