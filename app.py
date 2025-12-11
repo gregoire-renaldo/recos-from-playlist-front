@@ -32,7 +32,7 @@ def load_css(file_name: str = "styles.css"):
         st.warning(f"CSS file '{file_name}' not found.")
 
 # Load external CSS
-load_css("styles.css")
+load_css("styles2.css")
 
 # --- Constants ---
 # don't forget to change it between dev and prod
@@ -225,8 +225,8 @@ def ask_chatgpt(prompt: str) -> str:
 # --- Autosave/State Management ---
 if "recommendations" not in st.session_state:
     st.session_state.recommendations = {
-        "Albert": None, 
-        "Michel": None, 
+        "Albert": None,
+        "Michel": None,
         "Tiffany": None,
         "Bert-small-en": None,
         "Bert-small-ml": None
@@ -379,7 +379,7 @@ if not df_songs.empty:
                     google_info.get("thumbnail")
                     or google_info.get("image")
                     or book.get("image")
-                    or "https://placehold.co/240x360?text=No+photo+on+google+books+api"
+                    or "https://cataas.com/cat"
                 )
                 purchase_link = (
                     google_info.get("buy_link")
@@ -387,10 +387,10 @@ if not df_songs.empty:
                     or book.get("buy_link")
                 )
                 preview_link = google_info.get("preview_link") or google_info.get("previewLink")
-                
+
                 # Escape HTML in description to prevent rendering issues
                 desc = html.escape(desc) if desc else "No description available."
-                
+
                 preview_length = 280  # Approx 4 lines at ~70 chars per line
                 if len(desc) > preview_length:
                     # Find a good break point (end of sentence or word)
@@ -400,7 +400,7 @@ if not df_songs.empty:
                         preview = desc[:last_period + 1]
                     else:
                         preview = desc[:preview_length].rsplit(' ', 1)[0] + "..."
-                    
+
                     desc_html = f"""<div class='desc-text desc-preview'>{preview}</div>
 <details class='desc-toggle'>
 <summary>Read more</summary>
