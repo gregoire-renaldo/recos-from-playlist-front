@@ -390,17 +390,20 @@ df_songs = load_data()
 if not df_songs.empty:
     # Song Selection
     st.markdown("#### 1. Select Songs")
+    if "selected_display_names" not in st.session_state:
+        st.session_state.selected_display_names = st.session_state.last_songs
+
     selected_display_names = st.multiselect(
         "Search and add songs:",
         options=df_songs["display_name"].unique(),
         placeholder="Type to search (e.g. 'Bohemian Rhapsody')...",
-        default=st.session_state.last_songs,  # restore selection if possible
+        key="selected_display_names",
     )
 
-    if selected_display_names:
-        # Optionnel : mémoriser les derniers morceaux choisis
-        st.session_state.last_songs = selected_display_names
+    # Always persist the latest selection so clearing or adding items does not require a second click
+    st.session_state.last_songs = selected_display_names
 
+    if selected_display_names:
         selected_songs = df_songs[df_songs["display_name"].isin(selected_display_names)]
         input_ids = selected_songs["songs_id"].tolist()
 
