@@ -243,10 +243,11 @@ if "explanations" not in st.session_state:
 
 # Sidebar
 with st.sidebar:
-    st.title("Model Selection")
+    st.title("Libraire-disquaire")
+    # st.title("Selection du libraire-disquaire")
 
     model_choice = st.radio(
-        "Select Persona:",
+        "Select :",
         ("Albert", "Michel", "Tiffany", "Bertina", "Roberto", "Ensemble"),
         index=0
     )
