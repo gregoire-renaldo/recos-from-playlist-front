@@ -324,8 +324,8 @@ with st.sidebar:
             "Albert (BERT-big)": "albert",
             "Michel (Numerical)": "michel",
             "Tiffany (TF-IDF)": "tiffany",
-            "Bertina ()": "Bertina",
-            "Roberto": "Roberto"
+            "Bertina (bert-small-en)": "bert-small-en",
+            "Roberto (bert-small-ml)": "bert-small-ml"
         }
 
         selected_models = st.multiselect(
@@ -575,7 +575,7 @@ if not df_songs.empty:
 
 else:
     st.info("Loading song database... if this takes too long, check the data path.")
- 
+
 #  Footer: fixed to bottom with light styling so it doesn't blend in
 st.markdown(
     """
