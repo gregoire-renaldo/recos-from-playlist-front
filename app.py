@@ -534,7 +534,7 @@ if not df_songs.empty:
                         unsafe_allow_html=True,
                     )
 
-        st.markdown("#### Explication par le libraire (ChatGPT)")
+        st.markdown("#### Explication par le libraire")
         if OpenAI is None:
             st.info("Installe la dépendance 'openai' pour activer l'explication automatique.")
         elif not OPENAI_API_KEY:
